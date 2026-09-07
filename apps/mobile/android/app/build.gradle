@@ -8,6 +8,11 @@ android {
     compileSdk 35
     ndkVersion "26.1.10909125"
 
+    def qqplayerNodeHome = System.getenv("QQPLAYER_NODE_HOME")
+    if (qqplayerNodeHome) {
+        sourceSets.main.jniLibs.srcDir new File(qqplayerNodeHome, "lib")
+    }
+
     defaultConfig {
         applicationId "com.qqplayer.app"
         minSdk 29
