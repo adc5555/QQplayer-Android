@@ -28,14 +28,14 @@ jobs:
       - name: Set up Android toolchain
         uses: android-actions/setup-android@v3
         with:
-          packages: "platforms;android-35 build-tools;35.0.0 ndk;26.1.10909125 cmake;3.22.1"
+          packages: "platforms;android-35 build-tools;35.0.0 ndk;25.2.9519653 cmake;3.22.1"
 
       - name: Build libnode.so for arm64-v8a
         working-directory: /tmp
         run: |
           git clone --depth 1 --branch v22.16.0 https://github.com/nodejs/node.git node
           cd node
-          export ANDROID_NDK_ROOT="${ANDROID_SDK_ROOT}/ndk/26.1.10909125"
+          export ANDROID_NDK_ROOT="${ANDROID_SDK_ROOT}/ndk/25.2.9519653"
           export TOOLCHAIN="${ANDROID_NDK_ROOT}/toolchains/llvm/prebuilt/linux-x86_64"
           export PATH="${TOOLCHAIN}/bin:${PATH}"
           export CC="${TOOLCHAIN}/bin/aarch64-linux-android29-clang"
