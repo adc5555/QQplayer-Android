@@ -1,0 +1,23 @@
+{
+  "name": "qqplayer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@9.15.0",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "dev:desktop": "pnpm --filter @qqplayer/desktop dev",
+    "build:desktop": "pnpm --filter @qqplayer/desktop build",
+    "dist:desktop": "pnpm --filter @qqplayer/desktop dist",
+    "android:sync": "pnpm --filter @qqplayer/mobile cap sync android"
+  },
+  "devDependencies": {
+    "typescript": "5.6.3"
+  }
+}

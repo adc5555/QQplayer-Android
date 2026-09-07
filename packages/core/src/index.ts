@@ -1,0 +1,11 @@
+export * from "./types.js";
+export * from "./errors.js";
+export { zzcSign } from "./algorithms/sign.js";
+export { qrcDecrypt } from "./algorithms/qrc.js";
+export { sanitizeForFilename, hash33, getGuid, getSearchId } from "./utils/common.js";
+export { redactValue } from "./utils/redact.js";
+export { makeDefaultDevice, randomImei, DeviceManager } from "./device.js";
+export { buildQimeiRequest, parseQimeiResponse } from "./qimei.js";
+export { QqMusicClient } from "./client.js";
+export { createCoreService } from "./service.js";
+export { FavoritesManager } from "./favorites.js";

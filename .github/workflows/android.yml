@@ -1,0 +1,65 @@
+name: android
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+
+      - name: Set up Android toolchain
+        uses: android-actions/setup-android@v3
+        with:
+          packages: "platforms;android-35 build-tools;35.0.0 ndk;26.1.10909125 cmake;3.22.1"
+
+      - name: Build libnode.so for arm64-v8a
+        working-directory: /tmp
+        run: |
+          git clone --depth 1 --branch v22.16.0 https://github.com/nodejs/node.git node
+          cd node
+          export ANDROID_NDK_ROOT="${ANDROID_SDK_ROOT}/ndk/26.1.10909125"
+          export TOOLCHAIN="${ANDROID_NDK_ROOT}/toolchains/llvm/prebuilt/linux-x86_64"
+          export CC="${TOOLCHAIN}/bin/aarch64-linux-android29-clang"
+          export CXX="${TOOLCHAIN}/bin/aarch64-linux-android29-clang++"
+          ./configure --shared --dest-cpu=arm64 --dest-os=android --openssl-no-asm --without-intl
+          make -j4
+          mkdir -p "${GITHUB_WORKSPACE}/node-artifacts/include/node"
+          cp -R include/node/* "${GITHUB_WORKSPACE}/node-artifacts/include/node/"
+          mkdir -p "${GITHUB_WORKSPACE}/node-artifacts/lib/arm64-v8a"
+          cp out/Release/libnode.so "${GITHUB_WORKSPACE}/node-artifacts/lib/arm64-v8a/libnode.so"
+
+      - name: Install and build web/core runner
+        env:
+          QQPLAYER_NODE_HOME: ${{ github.workspace }}/node-artifacts
+        run: |
+          pnpm install --ignore-scripts
+          pnpm build
+
+      - uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: 8.9
+
+      - name: Assemble debug APK
+        env:
+          QQPLAYER_NODE_HOME: ${{ github.workspace }}/node-artifacts
+        run: |
+          cd apps/mobile/android
+          gradle :app:assembleDebug
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: qqplayer-android-debug
+          path: apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk

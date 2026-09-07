@@ -1,0 +1,25 @@
+name: desktop
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+      - run: pnpm install --ignore-scripts
+      - run: pnpm build
+      - run: pnpm typecheck
+      - run: pnpm test
+      - name: Build NSIS installer
+        working-directory: apps/desktop
+        run: pnpm dist
