@@ -18,6 +18,12 @@ jobs:
           path: node-artifacts
           key: libnode-v22.16.0-ndk26.1.10909125-v2
 
+      - uses: actions/setup-java@v4
+        if: steps.cache-node.outputs.cache-hit != 'true'
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
       - name: Set up Android toolchain
         if: steps.cache-node.outputs.cache-hit != 'true'
         uses: android-actions/setup-android@v3
