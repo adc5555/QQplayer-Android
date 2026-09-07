@@ -92,7 +92,7 @@ jobs:
         if: failure()
         run: |
           if [ -f /tmp/gradle.log ]; then
-            tail -n 80 /tmp/gradle.log | sed 's/%/%25/g; s/\r/%0D/g; s/\n/%0A/g' | while IFS= read -r line; do
+            grep -E "FAILURE:|What went wrong:|Caused by:|Execution failed for task|error:|BUILD FAILED|> Task .* FAILED" /tmp/gradle.log | tail -n 40 | sed 's/%/%25/g; s/\r/%0D/g' | while IFS= read -r line; do
               echo "::error::${line}"
             done
           fi
