@@ -22,7 +22,7 @@ class QqPlayerCorePlugin : Plugin() {
         runtime.call(method, params) { result ->
             when {
                 result.isOk() -> call.resolve(result.value)
-                else -> call.reject(result.error.message ?: "unknown error")
+                else -> call.reject(result.error?.message ?: "unknown error")
             }
         }
     }
