@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { CoreError, CoreErrorCode } from "./errors.js";
-import type { FavoritePlaylist, Track } from "./types.js";
+import { DOWNLOADED_PLAYLIST_ID, type FavoritePlaylist, type Track } from "./types.js";
 
 export class FavoritesManager {
   private playlists: FavoritePlaylist[] = [];
@@ -11,6 +11,7 @@ export class FavoritesManager {
   constructor(dataDir: string) {
     this.storePath = join(dataDir, "favorites.json");
     this.load();
+    this.ensureDownloadedPlaylist();
   }
 
   async listPlaylists(): Promise<FavoritePlaylist[]> {
@@ -41,6 +42,9 @@ export class FavoritesManager {
   }
 
   async deletePlaylist(playlistId: string): Promise<void> {
+    if (playlistId === DOWNLOADED_PLAYLIST_ID) {
+      throw new CoreError(CoreErrorCode.INVALID_ARGUMENT, "宸蹭笅杞芥敹钘忓す涓嶈兘鍒犻櫎");
+    }
     const index = this.playlists.findIndex((playlist) => playlist.id === playlistId);
     if (index < 0) throw new CoreError(CoreErrorCode.NOT_FOUND, "收藏夹不存在");
     this.playlists.splice(index, 1);
@@ -81,6 +85,19 @@ export class FavoritesManager {
     } catch {
       this.playlists = [];
     }
+  }
+
+  private ensureDownloadedPlaylist(): void {
+    if (this.playlists.some((playlist) => playlist.id === DOWNLOADED_PLAYLIST_ID)) return;
+    const now = Date.now();
+    this.playlists.unshift({
+      id: DOWNLOADED_PLAYLIST_ID,
+      name: "已下载",
+      tracks: [],
+      createdAtMs: now,
+      updatedAtMs: now
+    });
+    this.save();
   }
 
   private save(): void {

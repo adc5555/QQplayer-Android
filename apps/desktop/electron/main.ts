@@ -35,8 +35,8 @@ function registerIpc(): void {
     getService().media.resolveUrl(trackId, quality)
   );
   ipcMain.handle("media:getLyrics", (_event, trackId: string) => getService().media.getLyrics(trackId));
-  ipcMain.handle("downloads:create", (_event, trackId: string, quality?: string, targetPath?: string) =>
-    getService().downloads.create(trackId, quality, targetPath)
+  ipcMain.handle("downloads:create", (_event, trackId: string, quality?: string, targetPath?: string, options?: any) =>
+    getService().downloads.create(trackId, quality, targetPath, options)
   );
   ipcMain.handle("downloads:pause", (_event, taskId: string) => getService().downloads.pause(taskId));
   ipcMain.handle("downloads:resume", (_event, taskId: string) => getService().downloads.resume(taskId));
@@ -45,6 +45,8 @@ function registerIpc(): void {
   ipcMain.handle("downloads:clear", () => getService().downloads.clear());
   ipcMain.handle("downloads:getDirectory", () => getService().downloads.getDirectory());
   ipcMain.handle("downloads:setDirectory", (_event, directory: string) => getService().downloads.setDirectory(directory));
+  ipcMain.handle("downloads:syncDownloaded", () => getService().downloads.syncDownloaded());
+  ipcMain.handle("downloads:removeDownloadedTrack", (_event, trackId: string) => getService().downloads.removeDownloadedTrack(trackId));
   ipcMain.handle("dialog:selectDownloadDirectory", async () => {
     const result = await dialog.showOpenDialog({
       title: "选择下载目录",

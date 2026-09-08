@@ -36,6 +36,7 @@ export const AUDIO_QUALITIES: readonly AudioQuality[] = [
 ];
 
 export const DEFAULT_QUALITY_CODE = "M500";
+export const DOWNLOADED_PLAYLIST_ID = "__downloaded__";
 
 export function findQuality(code: string): AudioQuality | undefined {
   return AUDIO_QUALITIES.find((q) => q.code === code);
@@ -99,10 +100,16 @@ export interface DownloadTask {
   receivedBytes: number;
   totalBytes: number;
   filePath?: string;
+  lyricsPath?: string;
   errorCode?: string;
   errorMessage?: string;
   createdAtMs: number;
   updatedAtMs: number;
+}
+
+export interface DownloadOptions {
+  includeLyrics?: boolean;
+  includeTranslation?: boolean;
 }
 
 export interface FavoritePlaylist {
@@ -135,7 +142,7 @@ export interface CoreService {
     getLyrics(trackId: string): Promise<LyricDocument>;
   };
   downloads: {
-    create(trackId: string, qualityCode?: string, targetPath?: string): Promise<DownloadTask>;
+    create(trackId: string, qualityCode?: string, targetPath?: string, options?: DownloadOptions): Promise<DownloadTask>;
     pause(taskId: string): Promise<DownloadTask>;
     resume(taskId: string): Promise<DownloadTask>;
     cancel(taskId: string): Promise<DownloadTask>;
@@ -143,6 +150,8 @@ export interface CoreService {
     clear(): Promise<void>;
     getDirectory(): Promise<string>;
     setDirectory(directory: string): Promise<void>;
+    syncDownloaded(): Promise<void>;
+    removeDownloadedTrack(trackId: string): Promise<void>;
   };
   favorites: {
     listPlaylists(): Promise<FavoritePlaylist[]>;

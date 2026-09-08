@@ -13,7 +13,7 @@ contextBridge.exposeInMainWorld("qqplayer", {
     getLyrics: (trackId) => ipcRenderer.invoke("media:getLyrics", trackId)
   },
   downloads: {
-    create: (trackId, quality, targetPath) => ipcRenderer.invoke("downloads:create", trackId, quality, targetPath),
+    create: (trackId, quality, targetPath, options) => ipcRenderer.invoke("downloads:create", trackId, quality, targetPath, options),
     pause: (taskId) => ipcRenderer.invoke("downloads:pause", taskId),
     resume: (taskId) => ipcRenderer.invoke("downloads:resume", taskId),
     cancel: (taskId) => ipcRenderer.invoke("downloads:cancel", taskId),
@@ -21,6 +21,8 @@ contextBridge.exposeInMainWorld("qqplayer", {
     clear: () => ipcRenderer.invoke("downloads:clear"),
     getDirectory: () => ipcRenderer.invoke("downloads:getDirectory"),
     setDirectory: (directory) => ipcRenderer.invoke("downloads:setDirectory", directory),
+    syncDownloaded: () => ipcRenderer.invoke("downloads:syncDownloaded"),
+    removeDownloadedTrack: (trackId) => ipcRenderer.invoke("downloads:removeDownloadedTrack", trackId),
     selectDirectory: () => ipcRenderer.invoke("dialog:selectDownloadDirectory")
   },
   favorites: {

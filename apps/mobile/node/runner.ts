@@ -70,7 +70,7 @@ async function invoke(method: string, params: Record<string, any>): Promise<unkn
     case "media.getLyrics":
       return service.media.getLyrics(params.trackId);
     case "downloads.create":
-      return service.downloads.create(params.trackId, params.quality, params.targetPath);
+      return service.downloads.create(params.trackId, params.quality, params.targetPath, params.options);
     case "downloads.pause":
       return service.downloads.pause(params.taskId);
     case "downloads.resume":
@@ -85,6 +85,10 @@ async function invoke(method: string, params: Record<string, any>): Promise<unkn
       return service.downloads.getDirectory();
     case "downloads.setDirectory":
       return service.downloads.setDirectory(params.directory);
+    case "downloads.syncDownloaded":
+      return service.downloads.syncDownloaded();
+    case "downloads.removeDownloadedTrack":
+      return service.downloads.removeDownloadedTrack(params.trackId);
     case "favorites.listPlaylists":
       return service.favorites.listPlaylists();
     case "favorites.createPlaylist":

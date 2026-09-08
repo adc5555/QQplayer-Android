@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { CoreService, DownloadTask, FavoritePlaylist, SearchPage, Track } from "@qqplayer/core";
 import { formatTime, usePlayer } from "@qqplayer/ui";
 
-type Tab = "search" | "now" | "favorites" | "downloads" | "settings";
+type Tab = "search" | "now" | "playlist" | "favorites" | "downloads" | "settings";
 
 const service = createBridgeService();
 
@@ -24,6 +24,8 @@ export function App() {
   const [dialogName, setDialogName] = useState("");
   const [downloads, setDownloads] = useState<DownloadTask[]>([]);
   const [downloadDir, setDownloadDir] = useState("");
+  const [downloadLyrics, setDownloadLyrics] = useState(true);
+  const [downloadTranslation, setDownloadTranslation] = useState(true);
   const lyricsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -35,6 +37,7 @@ export function App() {
     void refreshFavorites();
     void refreshDownloads();
     void loadDownloadDir();
+    void service.downloads.syncDownloaded().finally(() => void refreshFavorites());
   }, []);
 
   useEffect(() => {
@@ -94,8 +97,12 @@ export function App() {
 
   async function downloadTrack(track: Track) {
     try {
-      await service.downloads.create(track.mid || track.id, "M500");
+      await service.downloads.create(track.mid || track.id, "M500", undefined, {
+        includeLyrics: downloadLyrics,
+        includeTranslation: downloadTranslation
+      });
       await refreshDownloads();
+      await refreshFavorites();
       setToast("已开始下载");
     } catch (cause) {
       setToast((cause as Error).message);
@@ -160,7 +167,11 @@ export function App() {
   async function removeFromFavorites(trackId: string) {
     if (!selectedPlaylistId) return;
     try {
-      await service.favorites.removeTrack(selectedPlaylistId, trackId);
+      if (selectedPlaylistId === "__downloaded__") {
+        await service.downloads.removeDownloadedTrack(trackId);
+      } else {
+        await service.favorites.removeTrack(selectedPlaylistId, trackId);
+      }
       await refreshFavorites();
       setToast("已从收藏夹移除");
     } catch (cause) {
@@ -203,9 +214,13 @@ export function App() {
     if (!selectedPlaylist || selectedPlaylist.tracks.length === 0) return;
     try {
       for (const track of selectedPlaylist.tracks) {
-        await service.downloads.create(track.mid || track.id, "M500");
+        await service.downloads.create(track.mid || track.id, "M500", undefined, {
+          includeLyrics: downloadLyrics,
+          includeTranslation: downloadTranslation
+        });
       }
       await refreshDownloads();
+      await refreshFavorites();
       setToast(`已将 ${selectedPlaylist.tracks.length} 首加入下载队列`);
     } catch (cause) {
       setToast((cause as Error).message);
@@ -314,6 +329,36 @@ export function App() {
           </section>
         )}
 
+        {tab === "playlist" && (
+          <section className="mobile-page">
+            <div className="mobile-page-header">
+              <h2>播放列表</h2>
+              <div className="mobile-loop-switcher">
+                <button className={player.loopMode === "none" ? "active" : ""} onClick={() => player.setLoopMode("none")}>顺序</button>
+                <button className={player.loopMode === "all" ? "active" : ""} onClick={() => player.setLoopMode("all")}>列表循环</button>
+                <button className={player.loopMode === "one" ? "active" : ""} onClick={() => player.setLoopMode("one")}>单曲循环</button>
+                <button className={player.shuffle ? "active" : ""} onClick={player.toggleShuffle}>随机</button>
+              </div>
+            </div>
+            <div className="mobile-track-list">
+              {player.queue.length === 0 ? (
+                <div className="mobile-empty">播放列表为空</div>
+              ) : (
+                player.queue.map((track, index) => (
+                  <div key={`${track.mid || track.id}-${index}`} className="mobile-track-row" onClick={() => void player.playQueue(player.queue, index)}>
+                    <img src={track.coverUrl} alt="" />
+                    <div className="mobile-track-info">
+                      <strong>{track.title}</strong>
+                      <span>{track.artists.map((artist) => artist.name).join(" / ")}</span>
+                    </div>
+                    <span>{formatTime(track.durationSec ?? 0)}</span>
+                  </div>
+                ))
+              )}
+            </div>
+          </section>
+        )}
+
         {tab === "favorites" && (
           <section className="mobile-page">
             <div className="mobile-page-header">
@@ -327,8 +372,12 @@ export function App() {
                     <strong>{playlist.name}</strong>
                     <span>{playlist.tracks.length} 首</span>
                   </button>
-                  <button onClick={() => { setPlaylistDialog({ mode: "rename", playlistId: playlist.id, name: playlist.name }); setDialogName(playlist.name); }}>改名</button>
-                  <button onClick={() => void deletePlaylist(playlist.id)}>删除</button>
+                  {playlist.id !== "__downloaded__" && (
+                    <>
+                      <button onClick={() => { setPlaylistDialog({ mode: "rename", playlistId: playlist.id, name: playlist.name }); setDialogName(playlist.name); }}>改名</button>
+                      <button onClick={() => void deletePlaylist(playlist.id)}>删除</button>
+                    </>
+                  )}
                 </div>
               ))}
             </div>
@@ -372,6 +421,16 @@ export function App() {
               <input value={downloadDir} onChange={(event) => setDownloadDir(event.target.value)} placeholder="下载目录" />
               <button onClick={() => void saveDownloadDir()}>保存</button>
             </div>
+            <div className="mobile-download-options">
+              <label>
+                <input type="checkbox" checked={downloadLyrics} onChange={(event) => setDownloadLyrics(event.target.checked)} />
+                下载歌词
+              </label>
+              <label>
+                <input type="checkbox" checked={downloadTranslation} onChange={(event) => setDownloadTranslation(event.target.checked)} />
+                下载翻译
+              </label>
+            </div>
             <div className="mobile-download-list">
               {downloads.map((task) => (
                 <div className="mobile-download-item" key={task.id}>
@@ -405,6 +464,7 @@ export function App() {
       <footer className="mobile-tabs">
         <button className={tab === "search" ? "active" : ""} onClick={() => setTab("search")}>搜索</button>
         <button className={tab === "now" ? "active" : ""} onClick={() => setTab("now")}>正在播放</button>
+        <button className={tab === "playlist" ? "active" : ""} onClick={() => setTab("playlist")}>播放列表</button>
         <button className={tab === "favorites" ? "active" : ""} onClick={() => setTab("favorites")}>收藏</button>
         <button className={tab === "downloads" ? "active" : ""} onClick={() => setTab("downloads")}>下载</button>
         <button className={tab === "settings" ? "active" : ""} onClick={() => setTab("settings")}>设置</button>
@@ -476,14 +536,16 @@ function createBridgeService(): CoreService {
       getLyrics: (trackId) => call("media.getLyrics", { trackId }) as Promise<any>
     },
     downloads: {
-      create: (trackId, quality, targetPath) => call("downloads.create", { trackId, quality, targetPath }) as Promise<any>,
+      create: (trackId, quality, targetPath, options) => call("downloads.create", { trackId, quality, targetPath, options }) as Promise<any>,
       pause: (taskId) => call("downloads.pause", { taskId }) as Promise<any>,
       resume: (taskId) => call("downloads.resume", { taskId }) as Promise<any>,
       cancel: (taskId) => call("downloads.cancel", { taskId }) as Promise<any>,
       list: () => call("downloads.list") as Promise<any[]>,
       clear: () => call("downloads.clear") as Promise<void>,
       getDirectory: () => call("downloads.getDirectory") as Promise<string>,
-      setDirectory: (directory) => call("downloads.setDirectory", { directory }) as Promise<void>
+      setDirectory: (directory) => call("downloads.setDirectory", { directory }) as Promise<void>,
+      syncDownloaded: () => call("downloads.syncDownloaded") as Promise<void>,
+      removeDownloadedTrack: (trackId) => call("downloads.removeDownloadedTrack", { trackId }) as Promise<void>
     },
     favorites: {
       listPlaylists: () => call("favorites.listPlaylists") as Promise<FavoritePlaylist[]>,

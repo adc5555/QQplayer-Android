@@ -1,13 +1,16 @@
 import { createReadStream, createWriteStream, existsSync, mkdirSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { createServer } from "node:http";
+import { dirname, extname, join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { CoreError, CoreErrorCode } from "./errors.js";
 import { sanitizeForFilename } from "./utils/common.js";
-import type { DownloadTask, Track } from "./types.js";
+import { DOWNLOADED_PLAYLIST_ID, type DownloadOptions, type DownloadTask, type LyricDocument, type Track } from "./types.js";
 import type { QqMusicClient } from "./client.js";
 
 interface PersistedTask extends DownloadTask {
   finalPath?: string;
+  includeLyrics?: boolean;
+  includeTranslation?: boolean;
 }
 
 export class DownloadManager {
@@ -16,6 +19,9 @@ export class DownloadManager {
   private readonly storePath: string;
   private readonly settingsPath: string;
   private downloadDir: string;
+  private localServer = createServer((req, res) => void this.handleLocalRequest(req, res));
+  private localServerPort = 0;
+  private onCompleted?: (task: DownloadTask) => Promise<void>;
   private running = 0;
   private disposed = false;
 
@@ -30,9 +36,10 @@ export class DownloadManager {
     this.downloadDir = join(dataDir, "downloads");
     this.load();
     this.loadSettings();
+    this.startLocalServer();
   }
 
-  async create(trackId: string, qualityCode?: string, targetPath?: string): Promise<DownloadTask> {
+  async create(trackId: string, qualityCode?: string, targetPath?: string, options: DownloadOptions = {}): Promise<DownloadTask> {
     const resolved = await this.clientRequest(trackId, qualityCode);
     const track = resolved.track;
     const finalPath = targetPath ?? this.defaultPath(track, resolved.quality.ext);
@@ -46,6 +53,8 @@ export class DownloadManager {
       totalBytes: 0,
       filePath: finalPath,
       finalPath,
+      includeLyrics: options.includeLyrics ?? false,
+      includeTranslation: options.includeTranslation ?? false,
       createdAtMs: Date.now(),
       updatedAtMs: Date.now()
     };
@@ -120,9 +129,173 @@ export class DownloadManager {
     this.saveSettings();
   }
 
+  setOnCompleted(callback: (task: DownloadTask) => Promise<void>): void {
+    this.onCompleted = callback;
+  }
+
+  getLocalMediaUrl(trackId: string): { url: string; quality: DownloadTask["quality"] } | null {
+    const task = this.findCompletedTask(trackId);
+    if (!task?.filePath || !existsSync(task.filePath)) return null;
+    return {
+      url: `http://127.0.0.1:${this.localServerPort}/audio?trackId=${encodeURIComponent(trackId)}`,
+      quality: task.quality
+    };
+  }
+
+  async getLocalLyrics(trackId: string): Promise<LyricDocument | null> {
+    const task = this.findCompletedTask(trackId);
+    const path = task?.lyricsPath ?? this.sidecarPath(task);
+    if (!path || !existsSync(path)) return null;
+    try {
+      return JSON.parse(readFileSync(path, "utf-8")) as LyricDocument;
+    } catch {
+      return null;
+    }
+  }
+
+  async removeLocalFile(trackId: string): Promise<void> {
+    const task = this.findTask(trackId);
+    if (!task) return;
+    const part = `${task.filePath}.part`;
+    for (const path of [task.filePath, part, task.lyricsPath]) {
+      if (path && existsSync(path)) {
+        try {
+          unlinkSync(path);
+        } catch {
+          // 鍒犻櫎澶辫触鏃惰繕鏄Щ闄や笅杞戒换鍔★紝閬垮厤鍒楄〃鍙嶅
+        }
+      }
+    }
+    this.tasks.delete(task.id);
+    this.save();
+  }
+
+  async syncDownloadedPlaylist(
+    addTrack: (track: Track) => Promise<void>,
+    removeTrack: (trackId: string) => Promise<void>
+  ): Promise<void> {
+    const completed = [...this.tasks.values()].filter((task) => task.status === "completed");
+    for (const task of completed) {
+      if (task.filePath && existsSync(task.filePath)) {
+        await addTrack(task.track);
+      } else {
+        this.tasks.delete(task.id);
+        await removeTrack(task.trackId);
+      }
+    }
+    this.save();
+  }
+
   async dispose(): Promise<void> {
     this.disposed = true;
     for (const controller of this.controllers.values()) controller.abort(new Error("disposed"));
+    await new Promise<void>((resolve) => this.localServer.close(() => resolve()));
+  }
+
+  private startLocalServer(): void {
+    this.localServer.on("error", (error) => {
+      // 鏈湴濯掍綋鏈嶅姟鍣ㄥ惎鍔ㄥけ璐ヤ笉闃绘柇涓嬭浇锛岀綉缁滄挱鏀惧皢鍥為€€鍒拌繙绋嬨€?
+      console.error("local media server error", error);
+    });
+    this.localServer.listen(0, "127.0.0.1", () => {
+      const address = this.localServer.address();
+      this.localServerPort = typeof address === "object" && address ? address.port : 0;
+    });
+  }
+
+  private async handleLocalRequest(req: import("node:http").IncomingMessage, res: import("node:http").ServerResponse): Promise<void> {
+    const url = new URL(req.url ?? "/", "http://127.0.0.1");
+    try {
+      if (url.pathname === "/audio") {
+        const trackId = url.searchParams.get("trackId") ?? "";
+        const task = this.findCompletedTask(trackId);
+        if (!task?.filePath || !existsSync(task.filePath)) {
+          res.writeHead(404).end();
+          return;
+        }
+        await this.streamAudio(task.filePath, req, res);
+        return;
+      }
+      if (url.pathname === "/lyrics") {
+        const trackId = url.searchParams.get("trackId") ?? "";
+        const lyrics = await this.getLocalLyrics(trackId);
+        if (!lyrics) {
+          res.writeHead(404).end();
+          return;
+        }
+        res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" }).end(JSON.stringify(lyrics));
+        return;
+      }
+      res.writeHead(404).end();
+    } catch (cause) {
+      res.writeHead(500).end((cause as Error).message);
+    }
+  }
+
+  private streamAudio(filePath: string, req: import("node:http").IncomingMessage, res: import("node:http").ServerResponse): Promise<void> {
+    return new Promise((resolve) => {
+      const size = statSync(filePath).size;
+      const range = req.headers.range;
+      let start = 0;
+      let end = size - 1;
+      if (range) {
+        const match = /bytes=(\d*)-(\d*)/.exec(range);
+        if (match) {
+          start = match[1] ? Number(match[1]) : 0;
+          end = match[2] ? Number(match[2]) : size - 1;
+          if (end >= size) end = size - 1;
+        }
+      }
+      const contentLength = end - start + 1;
+      const headers: Record<string, string | number> = {
+        "Content-Type": contentType(filePath),
+        "Accept-Ranges": "bytes",
+        "Content-Length": contentLength
+      };
+      if (range) headers["Content-Range"] = `bytes ${start}-${end}/${size}`;
+      res.writeHead(range ? 206 : 200, headers);
+      const stream = createReadStream(filePath, { start, end });
+      stream.pipe(res);
+      stream.on("end", () => resolve());
+      stream.on("error", () => {
+        res.destroy();
+        resolve();
+      });
+    });
+  }
+
+  private findTask(trackId: string): PersistedTask | undefined {
+    return [...this.tasks.values()].find((task) =>
+      task.trackId === trackId || task.track.mid === trackId || task.track.id === trackId
+    );
+  }
+
+  private findCompletedTask(trackId: string): PersistedTask | undefined {
+    const task = this.findTask(trackId);
+    return task?.status === "completed" ? task : undefined;
+  }
+
+  private sidecarPath(task?: PersistedTask): string | undefined {
+    return task?.filePath ? `${task.filePath}.lyrics.json` : undefined;
+  }
+
+  private async writeLyricsSidecar(task: PersistedTask): Promise<void> {
+    const { SongApi } = await import("./api/song.js");
+    const api = new SongApi(this.client);
+    const lyric = await api.getLyrics(task.trackId);
+    const value: LyricDocument = {
+      ...lyric,
+      lines: lyric.lines.map((line) => ({
+        ...line,
+        translation: task.includeTranslation ? line.translation : undefined
+      }))
+    };
+    if (!task.includeLyrics && !task.includeTranslation) return;
+    const path = this.sidecarPath(task);
+    if (!path) return;
+    writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`, "utf-8");
+    task.lyricsPath = path;
+    this.save();
   }
 
   private async clientRequest(trackId: string, qualityCode?: string): Promise<{ track: Track; url: string; quality: DownloadTask["quality"] }> {
@@ -180,6 +353,12 @@ export class DownloadManager {
       task.updatedAtMs = Date.now();
       this.save();
       await this.streamToFile(task, resolved.url, true);
+      if (task.includeLyrics || task.includeTranslation) {
+        await this.writeLyricsSidecar(task);
+      }
+      if (this.onCompleted) {
+        await this.onCompleted(publicTask(task));
+      }
     } catch (cause) {
       if ((cause as Error).message === "paused") return;
       if ((cause as Error).message === "canceled") return;
@@ -328,4 +507,15 @@ function writeChunk(stream: NodeJS.WritableStream, chunk: Uint8Array): Promise<v
 
 function isCore(value: unknown): value is CoreError {
   return value instanceof CoreError;
+}
+
+function contentType(filePath: string): string {
+  switch (extname(filePath).toLowerCase()) {
+    case ".mp3": return "audio/mpeg";
+    case ".flac": return "audio/flac";
+    case ".ogg": return "audio/ogg";
+    case ".m4a": return "audio/mp4";
+    case ".wav": return "audio/wav";
+    default: return "application/octet-stream";
+  }
 }

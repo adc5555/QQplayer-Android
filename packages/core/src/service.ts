@@ -4,7 +4,7 @@ import { SongApi } from "./api/song.js";
 import { QqMusicClient } from "./client.js";
 import { DownloadManager } from "./downloads.js";
 import { FavoritesManager } from "./favorites.js";
-import type { CoreOptions, CoreService, DownloadTask } from "./types.js";
+import { DOWNLOADED_PLAYLIST_ID, type CoreOptions, type CoreService, type DownloadOptions, type DownloadTask } from "./types.js";
 
 export function createCoreService(options: CoreOptions): CoreService {
   const platform = options.platform ?? "android";
@@ -18,6 +18,9 @@ export function createCoreService(options: CoreOptions): CoreService {
   const song = new SongApi(client);
   const downloads = new DownloadManager(client, options.dataDir, options.fetch ?? globalThis.fetch);
   const favorites = new FavoritesManager(options.dataDir);
+  downloads.setOnCompleted(async (task) => {
+    await favorites.addTrack(DOWNLOADED_PLAYLIST_ID, task.track);
+  });
 
   return {
     auth: {
@@ -32,18 +35,36 @@ export function createCoreService(options: CoreOptions): CoreService {
       getTrack: (trackId) => song.getTrack(trackId)
     },
     media: {
-      resolveUrl: (trackId, preferredQuality) => song.resolveUrl(trackId, preferredQuality),
-      getLyrics: (trackId) => song.getLyrics(trackId)
+      resolveUrl: async (trackId, preferredQuality) => {
+        const local = downloads.getLocalMediaUrl(trackId);
+        if (local) {
+          return { trackId, quality: local.quality, url: local.url };
+        }
+        return song.resolveUrl(trackId, preferredQuality);
+      },
+      getLyrics: async (trackId) => {
+        const local = await downloads.getLocalLyrics(trackId);
+        if (local) return local;
+        return song.getLyrics(trackId);
+      }
     },
     downloads: {
-      create: (trackId, qualityCode, targetPath) => downloads.create(trackId, qualityCode, targetPath),
+      create: (trackId, qualityCode, targetPath, options?: DownloadOptions) => downloads.create(trackId, qualityCode, targetPath, options),
       pause: (taskId) => downloads.pause(taskId),
       resume: (taskId) => downloads.resume(taskId),
       cancel: (taskId) => downloads.cancel(taskId),
       list: () => downloads.list(),
       clear: () => downloads.clear(),
       getDirectory: () => downloads.getDirectory(),
-      setDirectory: (directory) => downloads.setDirectory(directory)
+      setDirectory: (directory) => downloads.setDirectory(directory),
+      syncDownloaded: () => downloads.syncDownloadedPlaylist(
+        async (track) => { await favorites.addTrack(DOWNLOADED_PLAYLIST_ID, track); },
+        async (trackId) => { await favorites.removeTrack(DOWNLOADED_PLAYLIST_ID, trackId); }
+      ),
+      removeDownloadedTrack: async (trackId) => {
+        await downloads.removeLocalFile(trackId);
+        await favorites.removeTrack(DOWNLOADED_PLAYLIST_ID, trackId);
+      }
     },
     favorites: {
       listPlaylists: () => favorites.listPlaylists(),
@@ -53,7 +74,13 @@ export function createCoreService(options: CoreOptions): CoreService {
       addTrack: (playlistId, track) => favorites.addTrack(playlistId, track),
       removeTrack: (playlistId, trackId) => favorites.removeTrack(playlistId, trackId)
     },
-    warmup: () => client.warmup(),
+    warmup: async () => {
+      await downloads.syncDownloadedPlaylist(
+        async (track) => { await favorites.addTrack(DOWNLOADED_PLAYLIST_ID, track); },
+        async (trackId) => { await favorites.removeTrack(DOWNLOADED_PLAYLIST_ID, trackId); }
+      );
+      await client.warmup();
+    },
     dispose: async () => {
       await downloads.dispose();
     }

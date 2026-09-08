@@ -23,6 +23,8 @@ export function App() {
   const [favorites, setFavorites] = useState<FavoritePlaylist[]>([]);
   const [downloads, setDownloads] = useState<DownloadTask[]>([]);
   const [downloadDir, setDownloadDir] = useState("");
+  const [downloadLyrics, setDownloadLyrics] = useState(true);
+  const [downloadTranslation, setDownloadTranslation] = useState(true);
   const [selectedPlaylistId, setSelectedPlaylistId] = useState<string | null>(null);
   const [playlistDialog, setPlaylistDialog] = useState<null | { mode: "create" } | { mode: "rename"; playlistId: string; name: string }>(null);
   const [dialogName, setDialogName] = useState("");
@@ -74,6 +76,7 @@ export function App() {
     void refreshFavorites();
     void refreshDownloads();
     void loadDownloadDirectory();
+    void window.qqplayer.downloads.syncDownloaded().finally(() => void refreshFavorites());
   }, []);
 
   useEffect(() => {
@@ -134,8 +137,12 @@ export function App() {
 
   async function downloadTrack(track: Track) {
     try {
-      await window.qqplayer.downloads.create(track.mid || track.id, "M500");
+      await window.qqplayer.downloads.create(track.mid || track.id, "M500", undefined, {
+        includeLyrics: downloadLyrics,
+        includeTranslation: downloadTranslation
+      });
       await refreshDownloads();
+      await refreshFavorites();
       setToast("已开始下载");
     } catch (error) {
       setToast((error as Error).message);
@@ -181,9 +188,13 @@ export function App() {
     if (!selectedPlaylist || selectedPlaylist.tracks.length === 0) return;
     try {
       for (const track of selectedPlaylist.tracks) {
-        await window.qqplayer.downloads.create(track.mid || track.id, "M500");
+        await window.qqplayer.downloads.create(track.mid || track.id, "M500", undefined, {
+          includeLyrics: downloadLyrics,
+          includeTranslation: downloadTranslation
+        });
       }
       await refreshDownloads();
+      await refreshFavorites();
       setToast(`已将 ${selectedPlaylist.tracks.length} 首加入下载队列`);
     } catch (error) {
       setToast((error as Error).message);
@@ -224,7 +235,11 @@ export function App() {
   async function removeFromFavorites(trackId: string) {
     if (!selectedPlaylistId) return;
     try {
-      await window.qqplayer.favorites.removeTrack(selectedPlaylistId, trackId);
+      if (selectedPlaylistId === "__downloaded__") {
+        await window.qqplayer.downloads.removeDownloadedTrack(trackId);
+      } else {
+        await window.qqplayer.favorites.removeTrack(selectedPlaylistId, trackId);
+      }
       await refreshFavorites();
       setToast("已从收藏夹移除");
     } catch (error) {
@@ -397,8 +412,12 @@ export function App() {
                       <strong>{playlist.name}</strong>
                       <span>{playlist.tracks.length} 首</span>
                     </button>
-                    <button onClick={() => { setPlaylistDialog({ mode: "rename", playlistId: playlist.id, name: playlist.name }); setDialogName(playlist.name); }}>重命名</button>
-                    <button onClick={() => void deletePlaylist(playlist.id)}>删除</button>
+                    {playlist.id !== "__downloaded__" && (
+                      <>
+                        <button onClick={() => { setPlaylistDialog({ mode: "rename", playlistId: playlist.id, name: playlist.name }); setDialogName(playlist.name); }}>重命名</button>
+                        <button onClick={() => void deletePlaylist(playlist.id)}>删除</button>
+                      </>
+                    )}
                   </div>
                 ))}
                 {favorites.length === 0 && <div className="panel-empty">还没有收藏夹</div>}
@@ -490,6 +509,17 @@ export function App() {
                 <span>{downloadDir || "读取中..."}</span>
               </div>
               <button className="primary-button" onClick={() => void selectDownloadDirectory()}>更改目录</button>
+            </div>
+
+            <div className="download-options">
+              <label>
+                <input type="checkbox" checked={downloadLyrics} onChange={(event) => setDownloadLyrics(event.target.checked)} />
+                下载歌词
+              </label>
+              <label>
+                <input type="checkbox" checked={downloadTranslation} onChange={(event) => setDownloadTranslation(event.target.checked)} />
+                下载翻译
+              </label>
             </div>
 
             <div className="download-list">
@@ -739,14 +769,16 @@ function createDesktopService(): CoreService {
       getLyrics: (trackId) => window.qqplayer.media.getLyrics(trackId) as Promise<any>
     },
     downloads: {
-      create: (trackId, quality, targetPath) => window.qqplayer.downloads.create(trackId, quality, targetPath) as Promise<any>,
+      create: (trackId, quality, targetPath, options) => window.qqplayer.downloads.create(trackId, quality, targetPath, options) as Promise<any>,
       pause: (taskId) => window.qqplayer.downloads.pause(taskId) as Promise<any>,
       resume: (taskId) => window.qqplayer.downloads.resume(taskId) as Promise<any>,
       cancel: (taskId) => window.qqplayer.downloads.cancel(taskId) as Promise<any>,
       list: () => window.qqplayer.downloads.list() as Promise<any[]>,
       clear: () => window.qqplayer.downloads.clear(),
       getDirectory: () => window.qqplayer.downloads.getDirectory(),
-      setDirectory: (directory) => window.qqplayer.downloads.setDirectory(directory)
+      setDirectory: (directory) => window.qqplayer.downloads.setDirectory(directory),
+      syncDownloaded: () => window.qqplayer.downloads.syncDownloaded(),
+      removeDownloadedTrack: (trackId) => window.qqplayer.downloads.removeDownloadedTrack(trackId)
     },
     favorites: {
       listPlaylists: () => window.qqplayer.favorites.list() as Promise<FavoritePlaylist[]>,

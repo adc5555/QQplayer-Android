@@ -14,7 +14,7 @@ interface Window {
       getLyrics(trackId: string): Promise<unknown>;
     };
     downloads: {
-      create(trackId: string, quality?: string, targetPath?: string): Promise<unknown>;
+      create(trackId: string, quality?: string, targetPath?: string, options?: { includeLyrics?: boolean; includeTranslation?: boolean }): Promise<unknown>;
       pause(taskId: string): Promise<unknown>;
       resume(taskId: string): Promise<unknown>;
       cancel(taskId: string): Promise<unknown>;
@@ -22,6 +22,8 @@ interface Window {
       clear(): Promise<void>;
       getDirectory(): Promise<string>;
       setDirectory(directory: string): Promise<void>;
+      syncDownloaded(): Promise<void>;
+      removeDownloadedTrack(trackId: string): Promise<void>;
       selectDirectory(): Promise<string | null>;
     };
     favorites: {
