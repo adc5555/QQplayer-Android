@@ -354,7 +354,12 @@ export class DownloadManager {
       this.save();
       await this.streamToFile(task, resolved.url, true);
       if (task.includeLyrics || task.includeTranslation) {
-        await this.writeLyricsSidecar(task);
+        try {
+          await this.writeLyricsSidecar(task);
+        } catch {
+          // 姝岃瘝涓嬭浇澶辫触涓嶅奖鍝嶉煶棰戜笅杞藉畬鎴愮姸鎬?
+          task.lyricsPath = undefined;
+        }
       }
       if (this.onCompleted) {
         await this.onCompleted(publicTask(task));

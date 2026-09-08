@@ -50,6 +50,15 @@ export function App() {
   }, [tab]);
 
   useEffect(() => {
+    if (tab !== "favorites") return;
+    const timer = window.setInterval(() => {
+      void refreshFavorites();
+      void refreshDownloads();
+    }, 1500);
+    return () => window.clearInterval(timer);
+  }, [tab]);
+
+  useEffect(() => {
     if (tab !== "now" || !player.lyrics) return;
     const container = lyricsRef.current;
     if (!container) return;

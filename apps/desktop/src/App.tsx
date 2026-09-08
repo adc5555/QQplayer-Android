@@ -86,6 +86,15 @@ export function App() {
   }, [page]);
 
   useEffect(() => {
+    if (page !== "favorites") return;
+    const timer = window.setInterval(() => {
+      void refreshFavorites();
+      void refreshDownloads();
+    }, 1500);
+    return () => window.clearInterval(timer);
+  }, [page]);
+
+  useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Enter") void search();
     };
