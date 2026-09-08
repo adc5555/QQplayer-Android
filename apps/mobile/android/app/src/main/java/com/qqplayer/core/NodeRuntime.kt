@@ -80,7 +80,7 @@ class NodeRuntime(private val context: Context) {
             .put("token", token)
         val thread = Thread {
             try {
-                val connection = java.net.Socket("127.0.0.1", port)
+                val connection = connectWithRetry(port)
                 connection.use { socket ->
                     val body = payload.toString()
                     socket.getOutputStream().write("$body\n".toByteArray(StandardCharsets.UTF_8))
@@ -96,6 +96,18 @@ class NodeRuntime(private val context: Context) {
         thread.start()
     }
 
+    private fun connectWithRetry(port: Int): java.net.Socket {
+        val deadline = System.currentTimeMillis() + 30_000
+        while (true) {
+            try {
+                return java.net.Socket("127.0.0.1", port)
+            } catch (cause: Exception) {
+                if (System.currentTimeMillis() >= deadline) throw cause
+                Thread.sleep(100)
+            }
+        }
+    }
+
     private fun handleResponse(raw: String?) {
         if (raw.isNullOrBlank()) return
         val json = JSONObject(raw)
@@ -105,7 +117,9 @@ class NodeRuntime(private val context: Context) {
             val error = json.optJSONObject("error")
             callback(RpcResult(JSObject(), Error(error?.optString("message") ?: "rpc error")))
         } else {
-            callback(RpcResult(JSObject.fromJSONObject(json.optJSONObject("result") ?: JSONObject()), null))
+            val wrapper = JSObject()
+            wrapper.put("value", if (json.has("result")) json.get("result") else JSONObject.NULL)
+            callback(RpcResult(wrapper, null))
         }
     }
 

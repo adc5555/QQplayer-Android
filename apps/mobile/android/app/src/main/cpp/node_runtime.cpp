@@ -3,12 +3,55 @@
 #include <vector>
 #include <thread>
 #include <cstring>
+#include <cstdio>
+#include <pthread.h>
+#include <unistd.h>
 #include <android/log.h>
 #include <node.h>
 
 namespace {
 std::thread g_node_thread;
 bool g_running = false;
+int pipe_stdout[2];
+int pipe_stderr[2];
+pthread_t thread_stdout;
+pthread_t thread_stderr;
+}
+
+void *thread_stdout_func(void*) {
+  char buf[2048];
+  ssize_t size;
+  while ((size = read(pipe_stdout[0], buf, sizeof(buf) - 1)) > 0) {
+    if (buf[size - 1] == '\n') --size;
+    buf[size] = 0;
+    __android_log_write(ANDROID_LOG_INFO, "QQPlayerNode", buf);
+  }
+  return 0;
+}
+
+void *thread_stderr_func(void*) {
+  char buf[2048];
+  ssize_t size;
+  while ((size = read(pipe_stderr[0], buf, sizeof(buf) - 1)) > 0) {
+    if (buf[size - 1] == '\n') --size;
+    buf[size] = 0;
+    __android_log_write(ANDROID_LOG_ERROR, "QQPlayerNode", buf);
+  }
+  return 0;
+}
+
+int start_redirecting_stdout_stderr() {
+  setvbuf(stdout, 0, _IONBF, 0);
+  pipe(pipe_stdout);
+  dup2(pipe_stdout[1], STDOUT_FILENO);
+  setvbuf(stderr, 0, _IONBF, 0);
+  pipe(pipe_stderr);
+  dup2(pipe_stderr[1], STDERR_FILENO);
+  if (pthread_create(&thread_stdout, 0, thread_stdout_func, 0) == -1) return -1;
+  pthread_detach(thread_stdout);
+  if (pthread_create(&thread_stderr, 0, thread_stderr_func, 0) == -1) return -1;
+  pthread_detach(thread_stderr);
+  return 0;
 }
 
 extern "C"
@@ -47,8 +90,16 @@ Java_com_qqplayer_core_NodeRuntime_nativeStart(
   }
   argv.push_back(nullptr);
 
+  __android_log_print(ANDROID_LOG_INFO, "QQPlayerNode", "entry=%s", entry.c_str());
+  if (access(entry.c_str(), F_OK) != 0) {
+    __android_log_print(ANDROID_LOG_ERROR, "QQPlayerNode", "runner.js not found: %s", entry.c_str());
+    delete[] args_buffer;
+    return -2;
+  }
+
   g_node_thread = std::thread([argv, args_buffer]() {
     __android_log_print(ANDROID_LOG_INFO, "QQPlayerNode", "starting node runtime");
+    start_redirecting_stdout_stderr();
     int exit_code = node::Start(static_cast<int>(argv.size() - 1), const_cast<char**>(argv.data()));
     __android_log_print(ANDROID_LOG_ERROR, "QQPlayerNode", "node runtime exited: %d", exit_code);
     delete[] args_buffer;
