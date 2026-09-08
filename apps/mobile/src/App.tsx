@@ -21,6 +21,7 @@ export function App() {
   const [toast, setToast] = useState<string | null>(null);
   const [favorites, setFavorites] = useState<FavoritePlaylist[]>([]);
   const [selectedPlaylistId, setSelectedPlaylistId] = useState<string | null>(null);
+  const [favoritesView, setFavoritesView] = useState<"playlists" | "detail">("playlists");
   const [playlistDialog, setPlaylistDialog] = useState<null | { mode: "create" } | { mode: "rename"; playlistId: string; name: string }>(null);
   const [dialogName, setDialogName] = useState("");
   const [downloads, setDownloads] = useState<DownloadTask[]>([]);
@@ -371,10 +372,11 @@ export function App() {
               <h2>收藏夹</h2>
               <button onClick={() => { setPlaylistDialog({ mode: "create" }); setDialogName(""); }}>新建</button>
             </div>
-            <div className="mobile-playlist-list">
+            {favoritesView === "playlists" ? (
+              <div className="mobile-playlist-list">
               {favorites.map((playlist) => (
                 <div key={playlist.id} className={`mobile-playlist ${playlist.id === selectedPlaylistId ? "active" : ""}`}>
-                  <button className="mobile-playlist-main" onClick={() => setSelectedPlaylistId(playlist.id)}>
+                  <button className="mobile-playlist-main" onClick={() => { setSelectedPlaylistId(playlist.id); setFavoritesView("detail"); }}>
                     <strong>{playlist.name}</strong>
                     <span>{playlist.tracks.length} 首</span>
                   </button>
@@ -386,9 +388,11 @@ export function App() {
                   )}
                 </div>
               ))}
-            </div>
-            {selectedPlaylist && (
+              </div>
+            ) : (
+              selectedPlaylist && (
               <>
+                <button className="mobile-back-button" onClick={() => setFavoritesView("playlists")}>返回</button>
                 <div className="mobile-page-header">
                   <h3>{selectedPlaylist.name}</h3>
                   <div className="mobile-page-header-actions">
@@ -413,6 +417,7 @@ export function App() {
                 ))}
                 </div>
               </>
+              )
             )}
           </section>
         )}

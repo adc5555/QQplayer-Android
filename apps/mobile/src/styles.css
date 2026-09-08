@@ -371,6 +371,15 @@ button {
   justify-content: space-between;
 }
 
+.mobile-back-button {
+  align-self: flex-start;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font-weight: 700;
+  cursor: pointer;
+}
+
 .mobile-page-header-actions {
   display: flex;
   gap: 6px;
