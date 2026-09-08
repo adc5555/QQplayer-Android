@@ -282,10 +282,6 @@ export function App() {
 
         {tab === "now" && (
           <section className="mobile-page mobile-now">
-            <div className="mobile-now-tabs">
-              <button className={nowView === "player" ? "active" : ""} onClick={() => setNowView("player")}>正在播放</button>
-              <button className={nowView === "playlist" ? "active" : ""} onClick={() => setNowView("playlist")}>播放列表</button>
-            </div>
             {nowView === "player" ? (
               player.currentTrack ? (
               <>
@@ -312,6 +308,7 @@ export function App() {
                   <button onClick={() => void player.previous()}>⏮</button>
                   <button className="mobile-play" onClick={() => void player.toggle()}>{player.isPlaying ? "❚❚" : "▶"}</button>
                   <button onClick={() => void player.next()}>⏭</button>
+                  <button onClick={() => setNowView("playlist")}>播放列表</button>
                 </div>
                 <input
                   type="range"
@@ -327,24 +324,13 @@ export function App() {
                   <button className={player.loopMode === "one" ? "active" : ""} onClick={() => player.setLoopMode("one")}>单曲循环</button>
                   <button className={player.shuffle ? "active" : ""} onClick={player.toggleShuffle}>随机</button>
                 </div>
-                <div className="mobile-queue">
-                  <h3>播放列表</h3>
-                  {player.queue.map((track, index) => (
-                    <div key={`${track.mid || track.id}-${index}`} className="mobile-queue-row" onClick={() => void player.playQueue(player.queue, index)}>
-                      <span>{index + 1}</span>
-                      <div>
-                        <strong>{track.title}</strong>
-                        <span>{track.artists.map((artist) => artist.name).join(" / ")}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
               </>
               ) : (
                 <div className="mobile-empty">选择一首歌开始播放</div>
               )
             ) : (
               <div className="mobile-page">
+                <button className="mobile-back-button" onClick={() => setNowView("player")}>返回</button>
                 <div className="mobile-page-header">
                   <h2>播放列表</h2>
                   <div className="mobile-loop-switcher">
