@@ -41,10 +41,8 @@ class NodeRuntime(private val context: Context) {
             .joinToString("") { ((it.toInt() and 0xff).toString(16)).padStart(2, '0') }
         val coreDir = File(context.filesDir, "core").apply { mkdirs() }
         val runner = File(coreDir, "runner.js")
-        if (!runner.exists()) {
-            context.assets.open("runner.js").use { input ->
-                runner.outputStream().use { output -> input.copyTo(output) }
-            }
+        context.assets.open("runner.js").use { input ->
+            runner.outputStream().use { output -> input.copyTo(output) }
         }
         val dataDir = coreDir.absolutePath
         executor.execute {
