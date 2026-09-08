@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import type { CoreService, DownloadTask, FavoritePlaylist, SearchPage, Track } from "@qqplayer/core";
 import { formatTime, usePlayer } from "@qqplayer/ui";
 
-type Tab = "search" | "now" | "playlist" | "favorites" | "downloads" | "settings";
+type Tab = "search" | "now" | "favorites" | "downloads" | "settings";
+type NowView = "player" | "playlist";
 
 const service = createBridgeService();
 
@@ -26,6 +27,7 @@ export function App() {
   const [downloadDir, setDownloadDir] = useState("");
   const [downloadLyrics, setDownloadLyrics] = useState(true);
   const [downloadTranslation, setDownloadTranslation] = useState(true);
+  const [nowView, setNowView] = useState<NowView>("player");
   const lyricsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -270,7 +272,12 @@ export function App() {
 
         {tab === "now" && (
           <section className="mobile-page mobile-now">
-            {player.currentTrack ? (
+            <div className="mobile-now-tabs">
+              <button className={nowView === "player" ? "active" : ""} onClick={() => setNowView("player")}>正在播放</button>
+              <button className={nowView === "playlist" ? "active" : ""} onClick={() => setNowView("playlist")}>播放列表</button>
+            </div>
+            {nowView === "player" ? (
+              player.currentTrack ? (
               <>
                 <div className="mobile-now-header">
                   <img src={player.currentTrack.coverUrl} alt="" />
@@ -323,39 +330,38 @@ export function App() {
                   ))}
                 </div>
               </>
-            ) : (
-              <div className="mobile-empty">选择一首歌开始播放</div>
-            )}
-          </section>
-        )}
-
-        {tab === "playlist" && (
-          <section className="mobile-page">
-            <div className="mobile-page-header">
-              <h2>播放列表</h2>
-              <div className="mobile-loop-switcher">
-                <button className={player.loopMode === "none" ? "active" : ""} onClick={() => player.setLoopMode("none")}>顺序</button>
-                <button className={player.loopMode === "all" ? "active" : ""} onClick={() => player.setLoopMode("all")}>列表循环</button>
-                <button className={player.loopMode === "one" ? "active" : ""} onClick={() => player.setLoopMode("one")}>单曲循环</button>
-                <button className={player.shuffle ? "active" : ""} onClick={player.toggleShuffle}>随机</button>
-              </div>
-            </div>
-            <div className="mobile-track-list">
-              {player.queue.length === 0 ? (
-                <div className="mobile-empty">播放列表为空</div>
               ) : (
-                player.queue.map((track, index) => (
-                  <div key={`${track.mid || track.id}-${index}`} className="mobile-track-row" onClick={() => void player.playQueue(player.queue, index)}>
-                    <img src={track.coverUrl} alt="" />
-                    <div className="mobile-track-info">
-                      <strong>{track.title}</strong>
-                      <span>{track.artists.map((artist) => artist.name).join(" / ")}</span>
-                    </div>
-                    <span>{formatTime(track.durationSec ?? 0)}</span>
+                <div className="mobile-empty">选择一首歌开始播放</div>
+              )
+            ) : (
+              <div className="mobile-page">
+                <div className="mobile-page-header">
+                  <h2>播放列表</h2>
+                  <div className="mobile-loop-switcher">
+                    <button className={player.loopMode === "none" ? "active" : ""} onClick={() => player.setLoopMode("none")}>顺序</button>
+                    <button className={player.loopMode === "all" ? "active" : ""} onClick={() => player.setLoopMode("all")}>列表循环</button>
+                    <button className={player.loopMode === "one" ? "active" : ""} onClick={() => player.setLoopMode("one")}>单曲循环</button>
+                    <button className={player.shuffle ? "active" : ""} onClick={player.toggleShuffle}>随机</button>
                   </div>
-                ))
-              )}
-            </div>
+                </div>
+                <div className="mobile-track-list">
+                  {player.queue.length === 0 ? (
+                    <div className="mobile-empty">播放列表为空</div>
+                  ) : (
+                    player.queue.map((track, index) => (
+                      <div key={`${track.mid || track.id}-${index}`} className="mobile-track-row" onClick={() => void player.playQueue(player.queue, index)}>
+                        <img src={track.coverUrl} alt="" />
+                        <div className="mobile-track-info">
+                          <strong>{track.title}</strong>
+                          <span>{track.artists.map((artist) => artist.name).join(" / ")}</span>
+                        </div>
+                        <span>{formatTime(track.durationSec ?? 0)}</span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
           </section>
         )}
 
@@ -464,7 +470,6 @@ export function App() {
       <footer className="mobile-tabs">
         <button className={tab === "search" ? "active" : ""} onClick={() => setTab("search")}>搜索</button>
         <button className={tab === "now" ? "active" : ""} onClick={() => setTab("now")}>正在播放</button>
-        <button className={tab === "playlist" ? "active" : ""} onClick={() => setTab("playlist")}>播放列表</button>
         <button className={tab === "favorites" ? "active" : ""} onClick={() => setTab("favorites")}>收藏</button>
         <button className={tab === "downloads" ? "active" : ""} onClick={() => setTab("downloads")}>下载</button>
         <button className={tab === "settings" ? "active" : ""} onClick={() => setTab("settings")}>设置</button>

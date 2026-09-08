@@ -291,6 +291,28 @@ button {
   color: var(--accent);
 }
 
+.mobile-now-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.mobile-now-tabs button {
+  flex: 1;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 9px 10px;
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.mobile-now-tabs button.active {
+  border-color: rgba(49, 194, 124, 0.45);
+  background: #18241f;
+  color: var(--accent);
+}
+
 .mobile-queue {
   display: flex;
   flex-direction: column;
@@ -387,6 +409,19 @@ button {
 .mobile-dir {
   display: flex;
   gap: 8px;
+}
+
+.mobile-download-options {
+  display: flex;
+  gap: 14px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.mobile-download-options label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
 }
 
 .mobile-download-item {
