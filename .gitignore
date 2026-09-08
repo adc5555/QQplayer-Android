@@ -1,6 +1,7 @@
 node_modules/
 dist/
 test-dist/
+node-artifacts/
 .tmp/
 .tmp-search/
 .tmp-*/
@@ -24,10 +25,14 @@ apps/mobile/android/app/src/main/assets/runner.js
 
 apps/mobile/android/.gradle/
 apps/mobile/android/app/build/
+apps/mobile/android/app/.cxx/
 apps/mobile/android/build/
 apps/mobile/android/local.properties
 apps/mobile/android/app/src/main/assets/capacitor.config.json
 apps/mobile/android/app/src/main/assets/capacitor.plugins.json
+apps/mobile/android/gradle/wrapper/gradle-wrapper.jar
+
+QQplayer-Android.bundle
 
 apps/desktop/release/
 *.pem

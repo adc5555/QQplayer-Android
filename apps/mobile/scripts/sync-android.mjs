@@ -23,7 +23,7 @@ fs.writeFileSync(
 
 fs.writeFileSync(
   path.join(assets, "capacitor.plugins.json"),
-  JSON.stringify([{ pkg: "@capacitor/app", version: "6.0.0" }], null, 2)
+  "[]\n"
 );
 
 function copyDir(source, target) {

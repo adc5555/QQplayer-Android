@@ -1,6 +1,9 @@
 #include <jni.h>
 #include <string>
+#include <vector>
 #include <thread>
+#include <cstring>
+#include <android/log.h>
 #include <node.h>
 
 namespace {
@@ -22,20 +25,33 @@ Java_com_qqplayer_core_NodeRuntime_nativeStart(
 
   std::string entry = data_chars;
   entry += "/runner.js";
-  std::string token_arg = std::string("--qqplayer-token=") + token_chars;
-  std::string port_arg = std::string("--qqplayer-port=") + std::to_string(port);
-  std::string data_arg = std::string("--qqplayer-data-dir=") + data_chars;
+  std::vector<std::string> args = {
+    "node",
+    entry,
+    std::string("--qqplayer-port=") + std::to_string(port),
+    std::string("--qqplayer-token=") + token_chars,
+    std::string("--qqplayer-data-dir=") + data_chars
+  };
 
-  g_node_thread = std::thread([entry, token_arg, port_arg, data_arg]() {
-    const char* argv[] = {
-      "node",
-      entry.c_str(),
-      port_arg.c_str(),
-      token_arg.c_str(),
-      data_arg.c_str()
-    };
-    int argc = 5;
-    node::Start(argc, const_cast<char**>(argv));
+  size_t buffer_size = 0;
+  for (const auto& arg : args) buffer_size += arg.size() + 1;
+  char* args_buffer = new char[buffer_size]();
+  std::vector<char*> argv;
+  argv.reserve(args.size() + 1);
+  size_t offset = 0;
+  for (const auto& arg : args) {
+    char* dest = args_buffer + offset;
+    std::memcpy(dest, arg.c_str(), arg.size() + 1);
+    argv.push_back(dest);
+    offset += arg.size() + 1;
+  }
+  argv.push_back(nullptr);
+
+  g_node_thread = std::thread([argv, args_buffer]() {
+    __android_log_print(ANDROID_LOG_INFO, "QQPlayerNode", "starting node runtime");
+    int exit_code = node::Start(static_cast<int>(argv.size() - 1), const_cast<char**>(argv.data()));
+    __android_log_print(ANDROID_LOG_ERROR, "QQPlayerNode", "node runtime exited: %d", exit_code);
+    delete[] args_buffer;
   });
   g_running = true;
 
